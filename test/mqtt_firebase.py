@@ -6,7 +6,7 @@ from datetime import datetime
 
 
 # firebase setup
-cred = credentials.Certificate("hydrosee-projects-firebase-adminsdk-fbsvc-dc95d05e8e.json")
+cred = credentials.Certificate("firebase_credentials\hydrosee-projects-firebase-adminsdk-fbsvc-dc95d05e8e.json")
 firebase_admin.initialize_app(cred, {
     "databaseURL": "https://hydrosee-projects-default-rtdb.asia-southeast1.firebasedatabase.app"
 })
@@ -68,11 +68,6 @@ def on_disconnect(client, userdata, rc):
     #     client.reconnect()
     # except Exception as e:
     #     print("Reconnect failed:", e)
-
-
-
-
-
 
 
 # MQTT Setup
