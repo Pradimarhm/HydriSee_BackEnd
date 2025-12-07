@@ -87,18 +87,32 @@ def register_device():
         now = firestore.SERVER_TIMESTAMP
         
         # Data device baru
-        new_device = {
-            'name': device_name,
-            'type': device_type,
-            'userId': uid,
-            'macAddress': device_id,
-            'status': 'offline',
-            'pairingTokenHash': hash_token(pairing_token),
-            'createdAt': now,
-            'lastSeen': now,
-            'lastTemp': 0.0,
-            'lastHum': 0.0
-        }
+        
+        if device_type != "camera":
+            new_device = {
+                'name': device_name,
+                'type': device_type,
+                'userId': uid,
+                'macAddress': device_id,
+                'status': 'offline',
+                'pairingTokenHash': hash_token(pairing_token),
+                'createdAt': now,
+                'lastSeen': now,
+            }
+        
+        else:
+            new_device = {
+                'name': device_name,
+                'type': device_type,
+                'userId': uid,
+                'macAddress': device_id,
+                'status': 'offline',
+                'pairingTokenHash': hash_token(pairing_token),
+                'createdAt': now,
+                'lastSeen': now,
+                'lastTemp': 0.0,
+                'lastHum': 0.0
+            }
         
         # Simpan ke Firestore
         device_ref.set(new_device)
@@ -162,62 +176,72 @@ def get_devices():
 # ROUTE 3: GET SENSOR DATA (Ambil data suhu & kelembapan terbaru)
 # =========================================================================
 
-@bp.route('/sensor-data/<device_id>', methods=['GET'])
-def get_sensor_data(device_id):
+
+@bp.route('/sensor-update-data', methods=['POST'])
+def update_sensor_data():
     """
-    Endpoint untuk mengambil data sensor terbaru dari device
-    Path Parameter:
-    - device_id: MAC Address perangkat
-    Headers:
-    - Authorization: Bearer <idToken>
+    Endpoint untuk menerima data sensor Suhu dan Kelembapan dari IoT Device
+    dan mengupdatenya di dokumen 'devices' Firestore.
+
+    Request Body (JSON):
+    - deviceId: MAC Address perangkat (Document ID)
+    - temp: Suhu saat ini
+    - humid: Kelembapan saat ini
+    - pairingToken: Token yang dihasilkan saat register
     """
-    # Ambil token dari header
-    auth_header = request.headers.get('Authorization')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return jsonify({'error': 'Missing or invalid Authorization header'}), 401
-    
-    id_token = auth_header.split('Bearer ')[1]
-    
-    # Verify token
-    try:
-        decoded = auth.verify_id_token(id_token)
-        uid = decoded['uid']
-    except Exception as e:
-        return jsonify({'error': 'Invalid token', 'detail': str(e)}), 401
-    
-    # Query Firestore
+    data = request.get_json()
+    device_id = data.get('deviceId')
+    temp = data.get('temp')
+    humid = data.get('humid')
+    pairing_token = data.get('pairingToken')
+
+    # 1. Validasi Input
+    if not device_id or temp is None or humid is None or not pairing_token:
+        return jsonify({'error': 'Missing data in request body (deviceId, temp, humid, or pairingToken)'}), 400
+
     db = firestore.client()
     device_ref = db.collection('devices').document(device_id)
-    
+
     try:
         device_doc = device_ref.get()
-        
         if not device_doc.exists:
             return jsonify({'error': 'Device not found'}), 404
         
         device_data = device_doc.to_dict()
-        
-        # Cek kepemilikan
-        if device_data.get('userId') != uid:
-            return jsonify({'error': 'Unauthorized access to this device'}), 403
-        
-        # Ambil data sensor terbaru
-        sensor_data = {
-            'deviceId': device_id,
-            'deviceName': device_data.get('name'),
-            'temperature': device_data.get('lastTemp', 0.0),
-            'humidity': device_data.get('lastHum', 0.0),
-            'status': device_data.get('status', 'offline'),
-            'lastSeen': device_data.get('lastSeen'),
+
+        # 2. Verifikasi Pairing Token (Otentikasi Perangkat)
+        # Hash token yang diterima dan bandingkan dengan yang ada di Firestore
+        hashed_input_token = hash_token(pairing_token)
+        if device_data.get('pairingTokenHash') != hashed_input_token:
+            return jsonify({'error': 'Unauthorized: Invalid pairing token'}), 401
+
+        # 3. Update Data Sensor di Dokumen Device
+        sensor_payload = {
+            'lastTemp': float(temp),   # Menggunakan nama field yang sama dengan register dan model
+            'lastHum': float(humid),   # Menggunakan nama field yang sama dengan register dan model
+            'lastSeen': firestore.SERVER_TIMESTAMP,
+            'status': 'online' # Update status menjadi online saat mengirim data
         }
+
+        # Catatan Penting: Karena perangkat tidak mengirimkan token Firebase Auth,
+        # kita tidak bisa menggunakan request.auth.uid == request.resource.data.userId
+        # dalam Rules Firestore untuk Penulisan. Rules penulisan harus disesuaikan 
+        # untuk mempercayai Backend Python yang sudah terautentikasi (Service Account).
         
-        return jsonify({
-            'success': True,
-            'data': sensor_data
-        }), 200
+        device_ref.update(sensor_payload)
+
+        # (Opsional) 4. Simpan Riwayat Bacaan ke Sub-collection 'readings'
+        readings_ref = device_ref.collection('readings')
+        readings_ref.add({
+            'temperature': float(temp),
+            'humidity': float(humid),
+            'timestamp': firestore.SERVER_TIMESTAMP
+        })
         
+        return jsonify({'success': True, 'message': 'Sensor data updated successfully'}), 200
+
     except Exception as e:
-        return jsonify({'error': 'Failed to fetch sensor data', 'detail': str(e)}), 500
+        return jsonify({'error': 'Failed to update sensor data', 'detail': str(e)}), 500
 
 # =========================================================================
 # ROUTE 4: GET HISTORICAL DATA (Ambil riwayat data sensor)

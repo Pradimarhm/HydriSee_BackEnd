@@ -58,22 +58,23 @@ class MqttFirebase:
                 return
             
             # --- LOGIKA DATA SENSOR (ONLINE) ---
-            if all(k in payload for k in ("temp", "hum", "time", "status")):
+            # if all(k in payload for k in ("temp", "hum", "time", "status")):
+            if all(k in payload for k in ("temp", "hum", "timestamp", "status")):
                 
                 # Parse timestamp
-                timestamp_str = payload["time"]
+                timestamp_str = payload["timestamp"]
                 timestamp_dt = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
 
-                sensor_data = {
-                    "temperature": float(payload["temp"]),
-                    "humidity": float(payload["hum"]),
-                    "timestamp": timestamp_dt 
-                }
+                # sensor_data = {
+                #     "temp": float(payload["temp"]),
+                #     "hum": float(payload["hum"]),
+                #     "timestamp": timestamp_dt 
+                # }
                 
-                # 1. Simpan data historis ke sub-koleksi 'readings'
-                readings_ref = device_ref.collection("readings")
-                readings_ref.add(sensor_data)
-                print(f"[{datetime.now()}] Historical data saved to readings subcollection")
+                # # 1. Simpan data historis ke sub-koleksi 'readings'
+                # readings_ref = device_ref.collection("readings")
+                # readings_ref.add(sensor_data)
+                # print(f"[{datetime.now()}] Historical data saved to readings subcollection")
 
                 # 2. Update status/data utama perangkat
                 device_ref.update({

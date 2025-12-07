@@ -22,7 +22,8 @@ client.loop_start()
 
 # MQTT CallBack
 def send_message():
-    data = {"status": "ada"}
+    # data = {"status": "SERANGGA_OFF"}
+    data = {"status": "SERANGGA_ON"}
     
     payload = json.dumps(data)
     client.publish(TOPIC, payload, qos=1)

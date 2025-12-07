@@ -10,7 +10,7 @@ class Config:
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
     
     # Firebase Configuration
-    FIREBASE_CREDENTIALS = os.getenv('FIREBASE_CREDENTIALS', 'firebase_credentials/serviceAccountKey.json')
+    FIREBASE_CREDENTIALS = os.getenv('FIREBASE_CREDENTIALS', 'firebase_credentials/hydrosee-projects-firebase-adminsdk-fbsvc-dc95d05e8e.json')
     FIREBASE_DATABASE_URL = os.getenv('FIREBASE_DATABASE_URL', 'https://hydrosee-projects-default-rtdb.asia-southeast1.firebasedatabase.app')
     
     
