@@ -1,6 +1,7 @@
 import json
 import paho.mqtt.client as mqtt
 import ssl
+import time
 from datetime import datetime
 
 from app.config import Config
@@ -11,9 +12,33 @@ class MqttSendToEsp32:
     client = None
     
     @classmethod
+    def wait_until_connected(cls, timeout=5):
+        """Tunggu sampai MQTT benar-benar terkoneksi"""
+        for _ in range(timeout * 10):
+            if cls.client and cls.client.is_connected():
+                return True
+            time.sleep(0.1)
+        return False
+    
+    @classmethod
+    def ensure_connected(cls):
+        """Pastikan MQTT selalu terkoneksi. Jika putus → reconnect."""
+        if cls.client is None:
+            cls.setup_client()
+            return
+
+        if not cls.client.is_connected():
+            print("⚠ MQTT terputus. Mencoba reconnect...")
+            try:
+                cls.client.reconnect()
+                print("✅ MQTT reconnect berhasil!")
+            except Exception as e:
+                print(f"❌ MQTT reconnect gagal: {e}")
+
+    @classmethod
     def setup_client(cls):
         if cls.client:
-            return # Sudah di setup
+            return  # Sudah di-setup
         
         cls.client = mqtt.Client()
 
@@ -29,29 +54,23 @@ class MqttSendToEsp32:
         except Exception as e:
             print(f"Failed to connect MQTT for sending: {e}")
 
-    # MQTT CallBack
     @classmethod
     def send_insect_status(cls, status="ada"):
+        # Pastikan client tetap hidup & reconnect jika terputus
+        cls.ensure_connected()
+
         if not cls.client:
             cls.setup_client()
-            
+
         if status not in ["ada", "tidak ada"]:
             print("Invalid Status. Pakai 'ada' atau 'tidak ada'.")
+            return
             
-        data = {"status": "tidak"}        
+        data = {"status": status}
         payload = json.dumps(data)
         
         if cls.client.is_connected():
             cls.client.publish(Config.MQTT_SEND_TO_ESP, payload, qos=1)
             print(f"[{datetime.now()}] Message sent to {Config.MQTT_SEND_TO_ESP}: {payload}")
         else:
-            print(f"[{datetime.now()}] Failed to send message: MQTT client is not connected.")
-        # client.publish(Config.MQTT_SEND_TO_ESP, payload, qos=1)
-        # print("Pesan terkirim:", payload)
-        
-    # send_message()
-
-    # client.loop_stop()
-
-    # client.loop_forever()
-    # client.disconnect()
+            print(f"[{datetime.now()}] MQTT masih tidak terhubung. Pesan TIDAK terkirim.")
